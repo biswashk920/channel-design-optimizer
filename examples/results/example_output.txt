@@ -1,0 +1,55 @@
+Section                            Rectangular               Trapezoidal                              Circular                        Trapezoidal (reference)
+Option                         optimised width  optimised width, z = 1.5  smallest listed diameter that passes  reference: best hydraulic section for z = 1.5
+Bottom width b (m)                       2.403                     2.059                                   NaN                                          0.714
+Side slope z (H:1V)                      0.000                     1.500                                   NaN                                          1.500
+Pipe diameter D (m)                        NaN                       NaN                                 2.400                                            NaN
+Normal depth y (m)                       1.201                     0.883                                 1.394                                          1.179
+Freeboard (m)                            0.240                     0.177                                 1.006                                          0.236
+Total depth (m)                          1.442                     1.060                                 2.400                                          1.414
+Width at top of bank (m)                 2.403                     5.239                                 2.400                                          4.956
+Flow area A (m2)                         2.887                     2.990                                 2.725                                          2.924
+Gross section area (m2)                  3.464                     3.869                                 4.524                                          4.009
+Wetted perimeter P (m)                   4.806                     5.244                                 4.159                                          4.963
+Hydraulic radius R (m)                   0.601                     0.570                                 0.655                                          0.589
+Water surface width T (m)                2.403                     4.709                                 2.369                                          4.249
+Velocity V (m/s)                         1.732                     1.672                                 1.835                                          1.710
+Froude number                            0.504                     0.670                                 0.546                                          0.658
+Flow regime                        subcritical               subcritical                           subcritical                                    subcritical
+Critical depth yc (m)                    0.761                     0.706                                 1.016                                          0.968
+Objective: gross section area            3.464                     3.869                                 4.524                                          4.009
+Check: Minimum velocity                   PASS                      PASS                                  PASS                                           PASS
+Check: Maximum velocity                   PASS                      PASS                                  PASS                                           PASS
+Check: Froude                             PASS                      PASS                                  PASS                                           PASS
+Check: Width limit                         n/a                       n/a                                   n/a                                            n/a
+Check: Depth limit                         n/a                       n/a                                   n/a                                            n/a
+Check: Filling ratio                       n/a                       n/a                                  PASS                                            n/a
+All checks                                PASS                      PASS                                  PASS                                           PASS
+
+RECOMMENDED: RECTANGULAR
+  - Rectangular has the lowest gross section area (3.464) among the sections that pass every check.
+  - V = 1.73 m/s vs minimum 0.6 m/s (silting) (OK)
+  - V = 1.73 m/s vs maximum 6 m/s (erosion) (OK)
+  - Fr = 0.50, subcritical (OK)
+  - Trapezoidal also passes but its gross section area is higher (3.869).
+  - Circular also passes but its gross section area is higher (4.524).
+
+Pipe diameters tested (y/D = filling ratio):
+  D = 0.3 m  y/D = -  V = - m/s  no: too small to carry Q
+  D = 0.4 m  y/D = -  V = - m/s  no: too small to carry Q
+  D = 0.5 m  y/D = -  V = - m/s  no: too small to carry Q
+  D = 0.6 m  y/D = -  V = - m/s  no: too small to carry Q
+  D = 0.75 m  y/D = -  V = - m/s  no: too small to carry Q
+  D = 0.9 m  y/D = -  V = - m/s  no: too small to carry Q
+  D = 1 m  y/D = -  V = - m/s  no: too small to carry Q
+  D = 1.2 m  y/D = -  V = - m/s  no: too small to carry Q
+  D = 1.5 m  y/D = -  V = - m/s  no: too small to carry Q
+  D = 1.8 m  y/D = -  V = - m/s  no: too small to carry Q
+  D = 2 m  y/D = 0.86  V = 1.74 m/s  no: y/D = 0.86 vs maximum 0.8 (air space)
+  D = 2.4 m  y/D = 0.58  V = 1.83 m/s  ok: passes
+
+Note: uniform flow only. Lining values and velocity limits are unverified typical figures: check them against a textbook.
+
+Saved examples/results/results.csv
+Saved examples/results/cross_sections.png
+Saved examples/results/optimisation_curves.png
+Saved examples/results/comparison.png

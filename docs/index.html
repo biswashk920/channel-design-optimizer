@@ -1,0 +1,114 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Channel Design Optimizer</title>
+<style>
+:root{color-scheme:dark;--bg:#12181f;--fg:#e3e9ef;--card:#1c242d;--ac:#6db3f2;--ok:#4cc27f;--bad:#f07070;--wt:#2d6ea3}
+body{margin:0;font:16px/1.5 system-ui,sans-serif;background:var(--bg);color:var(--fg)}main{max-width:1000px;margin:auto;padding:12px}
+h1{font-size:1.4rem}fieldset,.c{background:var(--card);border:0;border-radius:10px;padding:12px;margin:10px 0}
+.g{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px}label{display:block;font-size:.9rem}
+input,select,button{font:inherit;width:100%;box-sizing:border-box;padding:6px;border-radius:6px;border:1px solid #8886;background:var(--bg);color:var(--fg)}
+button{background:var(--ac);color:#0b1620;border:0;cursor:pointer;width:auto;padding:8px 16px;margin-right:6px}small{opacity:.75}
+.tw{overflow-x:auto}table{border-collapse:collapse;font-size:.85rem}td,th{padding:3px 8px;border-bottom:1px solid #8884;text-align:right}th:first-child,td:first-child{text-align:left}
+.ok{color:var(--ok)}.bad{color:var(--bad)}svg{max-width:100%;height:auto}.err{color:var(--bad);font-weight:600}</style></head><body><main>
+<h1>Channel Design Optimizer</h1>
+<p>Enter your flow, slope and lining to compare rectangular, trapezoidal and circular channels and see which one is the most efficient.</p>
+<fieldset><legend>Flow and ground</legend><div class="g">
+<label>Design flow Q (m³/s)<input id="Q" value="5"></label>
+<label>Bed slope S (m drop per m, e.g. 0.001 = 1 m per km)<input id="S" value="0.001"></label>
+<label>Lining material<select id="lin"></select></label>
+<label>Manning's roughness n (typed or filled from lining)<input id="n" value="0.013"></label></div>
+<small>Check n and velocity limits against Chow or your code.</small></fieldset>
+<fieldset><legend>Shape options</legend><div class="g">
+<label>Side slope z (horizontal per 1 vertical, trapezoid)<input id="z" value="1.5"></label>
+<label>Trapezoid mode<select id="mode"><option value="given_z">Use my z, optimise width</option><option value="best_for_z">Best hydraulic section for my z</option><option value="best_overall">Best z overall (half hexagon)</option></select></label>
+<label>Freeboard<select id="fbm"><option value="percent">percent of depth</option><option value="fixed">fixed metres</option></select></label>
+<label>Freeboard value<input id="fb" value="20"></label>
+<label>Goal (what to minimise)<select id="obj"><option value="area">Gross area (digging / pipe barrel)</option><option value="flow_area">Water flow area</option><option value="perimeter">Wetted perimeter (lining)</option><option value="cost">Cost proxy</option></select></label>
+<label>Cost per m² dug / per m lined<span style="display:flex;gap:4px"><input id="ce" value="1"><input id="cl" value="1"></span></label></div></fieldset>
+<fieldset><legend>Limits (leave blank for none)</legend><div class="g">
+<label>Min velocity (m/s, stops silting)<input id="vmin" value="0.6"></label>
+<label>Max velocity (m/s, stops erosion; filled from lining)<input id="vmax"></label>
+<label>Max top width (m)<input id="mw"></label><label>Max total depth incl. freeboard (m)<input id="md"></label>
+<label>Pipe diameters (m, comma list)<input id="dl" value="0.3,0.4,0.5,0.6,0.75,0.9,1,1.2,1.5,1.8,2,2.4"></label>
+<label>Or compute exact pipe size<select id="fd"><option value="0">No, use the list</option><option value="1">Yes</option></select></label>
+<label>Max pipe filling y/D<input id="mf" value="0.8"></label></div></fieldset>
+<button id="go">Calculate</button><button id="csv">Download CSV</button>
+<div id="out"></div>
+<p><small>Results assume steady, uniform flow in a straight channel of constant section.</small></p>
+<script id="core">
+const G=9.81,TOL=1e-9;
+function Trap(b,z){return{k:'trapezoidal',b,z,A:y=>(b+z*y)*y,P:y=>b+2*y*Math.sqrt(1+z*z),T:y=>b+2*z*y}}
+function Circ(D){const t=y=>2*Math.acos(1-2*Math.min(Math.max(y,0),D)/D);return{k:'circular',D,A:y=>D*D/8*(t(y)-Math.sin(t(y))),P:y=>D*t(y)/2,T:y=>D*Math.sin(t(y)/2)}}
+const flow=(s,y,S,n)=>{const A=s.A(y);return A<=0?0:A*Math.pow(A/s.P(y),2/3)*Math.sqrt(S)/n};
+function bis(f,lo,hi){let fl=f(lo);for(let i=0;i<200;i++){const m=(lo+hi)/2,fm=f(m);if((fm<0)===(fl<0)){lo=m;fl=fm}else hi=m}return(lo+hi)/2}
+function golden(f,a,b){const g=(Math.sqrt(5)-1)/2;let c=b-g*(b-a),d=a+g*(b-a),fc=f(c),fd=f(d);
+for(let i=0;i<200;i++){if(Math.abs(b-a)<1e-10*(1+Math.abs(a)+Math.abs(b)))break;
+if(fc<fd){b=d;d=c;fd=fc;c=b-g*(b-a);fc=f(c)}else{a=c;c=d;fc=fd;d=a+g*(b-a);fd=f(d)}}return(a+b)/2}
+const RQ=golden(r=>{const u=Circ(1),A=u.A(r);return-A*Math.pow(A/u.P(r),2/3)},0.5,0.999);
+class NoSol extends Error{}
+function normalDepth(s,Q,S,n){const f=y=>flow(s,y,S,n)-Q;
+if(s.k==='circular'){const hi=RQ*s.D;if(f(hi)<0)throw new NoSol('Pipe of diameter '+s.D+' m is too small for this flow.');return bis(f,1e-9*s.D,hi)}
+let hi=1;while(f(hi)<0){hi*=2;if(hi>1e5)throw new NoSol('No normal depth found.')}return bis(f,1e-9,hi)}
+function critDepth(s,Q){const f=y=>Q*Q*s.T(y)/(G*Math.pow(s.A(y),3))-1;
+if(s.k==='circular')return bis(f,1e-6*s.D,s.D*(1-1e-9));let hi=1;while(f(hi)>0)hi*=2;return bis(f,1e-9,hi)}
+function design(s,I,y,label,opt){const A=s.A(y),P=s.P(y),T=s.T(y),V=I.Q/A,Fr=V/Math.sqrt(G*A/T),c=s.k==='circular';
+let fb,H,bank,ae;if(c){fb=s.D-y;H=s.D;bank=s.D;ae=Math.PI*s.D*s.D/4}else{fb=I.fbm==='percent'?y*I.fb/100:I.fb;H=y+fb;bank=s.T(H);ae=(s.b+s.z*H)*H}
+const obj={area:ae,flow_area:A,perimeter:P,cost:I.ce*ae+I.cl*P}[I.obj];const f=[];let viol=0;
+const lim=(txt,bad,v)=>{if(bad){f.push(txt);viol+=v}};
+if(I.vmin!=null)lim('V '+V.toFixed(2)+' below min '+I.vmin,V<I.vmin*(1-TOL),(I.vmin-V)/I.vmin);
+if(I.vmax!=null)lim('V '+V.toFixed(2)+' above max '+I.vmax,V>I.vmax*(1+TOL),(V-I.vmax)/I.vmax);
+if(I.mw!=null)lim('Top width '+bank.toFixed(2)+' above '+I.mw,bank>I.mw*(1+TOL),(bank-I.mw)/I.mw);
+if(I.md!=null)lim('Total depth '+H.toFixed(2)+' above '+I.md,H>I.md*(1+TOL),(H-I.md)/I.md);
+if(c)lim('y/D '+(y/s.D).toFixed(2)+' above '+I.mf,y/s.D>I.mf*(1+TOL),(y/s.D-I.mf)/I.mf);
+return{s,label,opt,b:c?null:s.b,z:c?null:s.z,D:c?s.D:null,y,fb,H,bank,A,ae,P,R:A/P,T,V,Fr,
+regime:Math.abs(Fr-1)<1e-3?'critical':Fr<1?'subcritical':'supercritical',warn:Fr>=0.8&&Fr<=1.2,yc:critDepth(s,I.Q),obj,fails:f,ok:f.length===0,viol}}
+const mk=(s,I,l,o)=>design(s,I,normalDepth(s,I.Q,I.S,I.n),l,o);
+function bestZ(I,z,l,o){const m=2*(Math.sqrt(1+z*z)-z),g=y=>flow(Trap(m*y,z),y,I.S,I.n)-I.Q;let hi=1;while(g(hi)<0)hi*=2;const y=bis(g,1e-9,hi);return design(Trap(m*y,z),I,y,l,o)}
+function scanB(I,z,l,o){const b0=bestZ(I,z,l,o).b,N=400,lo=Math.log(0.05*b0),st=(Math.log(20*b0)-lo)/(N-1);
+let bs=[b0];for(let i=0;i<N;i++)bs.push(Math.exp(lo+i*st));bs.sort((a,b)=>a-b);bs=bs.filter((v,i)=>i===0||v!==bs[i-1]);
+const rows=bs.map(b=>mk(Trap(b,z),I,l,o)),feas=rows.filter(d=>d.ok);
+if(!feas.length)return rows.reduce((a,d)=>d.viol<a.viol?d:a);
+let best=feas.reduce((a,d)=>d.obj<a.obj?d:a);const i=rows.indexOf(best),big=best.obj*100;
+const pen=b=>{const d=mk(Trap(b,z),I,l,o);return d.ok?d.obj:big*(1+d.viol)};
+const a=rows[Math.max(i-1,0)].b,c=rows[Math.min(i+1,rows.length-1)].b;
+if(c>a){const d=mk(Trap(golden(pen,a,c),z),I,l,o);if(d.ok&&d.obj<best.obj)best=d}return best}
+function optCirc(I){let cands,o;if(I.free){const g=D=>flow(Circ(D),I.mf*D,I.S,I.n)-I.Q;let hi=1;while(g(hi)<0)hi*=2;cands=[bis(g,1e-3,hi)];o='exact diameter'}else{cands=I.diams.slice().sort((a,b)=>a-b);o='smallest listed diameter that passes'}
+const ds=[];for(const D of cands){try{ds.push(mk(Circ(D),I,'Circular',o))}catch(e){if(!(e instanceof NoSol))throw e}}
+if(!ds.length)throw new NoSol('Even the largest pipe is too small. Add larger diameters or use exact size.');
+const f=ds.filter(d=>d.ok);return f.length?f.reduce((a,d)=>d.obj<a.obj?d:a):ds.reduce((a,d)=>d.viol<a.viol?d:a)}
+function compare(I){const r={d:{},err:{}};
+r.d.rectangular=scanB(I,0,'Rectangular','optimised width');
+r.d.trapezoidal=I.mode==='best_overall'?bestZ(I,1/Math.sqrt(3),'Trapezoidal','best hydraulic section, z=1/sqrt(3)'):I.mode==='best_for_z'?bestZ(I,I.z,'Trapezoidal','best hydraulic section for z='+I.z):scanB(I,I.z,'Trapezoidal','optimised width, z='+I.z);
+try{r.d.circular=optCirc(I)}catch(e){if(e instanceof NoSol)r.err.circular=e.message;else throw e}
+const good=Object.values(r.d).filter(d=>d.ok);r.rec=good.length?good.reduce((a,d)=>d.obj<a.obj?d:a):null;return r}
+</script>
+<script>
+const LININGS=/*LININGS*/[{"id": "concrete_trowel", "label": "Concrete, trowel finish", "n": 0.013, "n_min": 0.011, "n_max": 0.015, "vmax": 6.0, "vmin": 0.6}, {"id": "concrete_rough", "label": "Concrete, rough / unfinished", "n": 0.017, "n_min": 0.014, "n_max": 0.02, "vmax": 5.0, "vmin": 0.6}, {"id": "gunite", "label": "Gunite (sprayed concrete)", "n": 0.019, "n_min": 0.016, "n_max": 0.023, "vmax": 5.0, "vmin": 0.6}, {"id": "brick", "label": "Brick with cement mortar", "n": 0.015, "n_min": 0.012, "n_max": 0.018, "vmax": 3.0, "vmin": 0.6}, {"id": "rubble", "label": "Rubble masonry", "n": 0.025, "n_min": 0.017, "n_max": 0.03, "vmax": 3.0, "vmin": 0.6}, {"id": "earth_clean", "label": "Earth, clean and uniform", "n": 0.02, "n_min": 0.016, "n_max": 0.025, "vmax": 0.9, "vmin": 0.6}, {"id": "earth_gravel", "label": "Earth, gravelly", "n": 0.025, "n_min": 0.022, "n_max": 0.03, "vmax": 1.5, "vmin": 0.6}, {"id": "rock_cut", "label": "Rock cut (irregular)", "n": 0.035, "n_min": 0.025, "n_max": 0.04, "vmax": 4.0, "vmin": 0.6}, {"id": "grass", "label": "Grass-lined", "n": 0.03, "n_min": 0.025, "n_max": 0.035, "vmax": 1.5, "vmin": 0.6}, {"id": "riprap", "label": "Riprap (loose stone)", "n": 0.033, "n_min": 0.03, "n_max": 0.04, "vmax": 3.0, "vmin": 0.6}, {"id": "pvc_hdpe", "label": "PVC / HDPE pipe", "n": 0.01, "n_min": 0.009, "n_max": 0.012, "vmax": 5.0, "vmin": 0.6}, {"id": "corrugated_metal", "label": "Corrugated metal pipe", "n": 0.024, "n_min": 0.021, "n_max": 0.03, "vmax": 5.0, "vmin": 0.6}]/*END*/;
+const $=i=>document.getElementById(i),num=i=>{const v=$(i).value.trim();return v===''?null:Number(v)};
+LININGS.forEach(l=>$('lin').add(new Option(l.label+' (n='+l.n+')',l.id)));$('lin').add(new Option('Custom (type n below)','')),$('lin').value='concrete_trowel';
+function pick(){const l=LININGS.find(x=>x.id===$('lin').value);if(l){$('n').value=l.n;$('vmax').value=l.vmax;$('vmin').value=l.vmin}}
+$('lin').onchange=pick;pick();
+function inputs(){const I={Q:num('Q'),S:num('S'),n:num('n'),z:num('z'),mode:$('mode').value,fbm:$('fbm').value,fb:num('fb'),obj:$('obj').value,ce:num('ce'),cl:num('cl'),
+vmin:num('vmin'),vmax:num('vmax'),mw:num('mw'),md:num('md'),free:$('fd').value==='1',mf:num('mf'),diams:$('dl').value.split(',').map(Number)};
+const bad=(c,m)=>{if(c)throw new Error(m)};
+bad(!(I.Q>0),'Design flow Q must be a number greater than zero.');bad(!(I.S>0),'Bed slope must be greater than zero (a flat bed has no uniform flow).');bad(I.S>=1,'Slope is in m/m: 0.001 means 1 m per km. 1 or more looks like a typing mistake.');
+bad(!(I.n>0&&I.n<=0.2),"Manning's n must be between 0 and 0.2 (typical 0.010 to 0.040).");bad(!(I.z>=0),'Side slope z must be zero or more.');bad(!(I.fb>=0),'Freeboard must be zero or more.');
+bad(I.vmin!=null&&I.vmax!=null&&I.vmin>=I.vmax,'Minimum velocity must be smaller than maximum velocity.');
+bad(!I.free&&(!I.diams.length||I.diams.some(d=>!(d>0))),'Pipe diameters must be positive numbers separated by commas.');bad(!(I.mf>0&&I.mf<=1),'Max filling y/D must be between 0 and 1.');
+bad(I.mw!=null&&!(I.mw>0),'Max width must be positive.');bad(I.md!=null&&!(I.md>0),'Max depth must be positive.');return I}
+const f3=v=>v==null?'-':v.toFixed(3);let last=null;
+function svg(d){const H=d.H,W=d.bank,c=d.D!=null,sx=140/Math.max(W,H*1.0),ox=90,oy=150;let s='';
+if(c){const r=d.D/2*sx,cy=oy-r;s+=`<circle cx="${ox}" cy="${cy}" r="${r}" fill="none" stroke="currentColor" stroke-width="2"/>`;const yy=oy-d.y*sx,dx=Math.sqrt(Math.max(r*r-(yy-cy)**2,0));
+s+=`<path d="M${ox-dx} ${yy} A${r} ${r} 0 ${d.y>d.D/2?1:0} 0 ${ox+dx} ${yy}Z" fill="var(--wt)"/>`}
+else{const t=d.T*sx/2,b=d.b*sx/2,w=W*sx/2,yy=oy-d.y*sx;s+=`<polygon points="${ox-b},${oy} ${ox+b},${oy} ${ox+t},${yy} ${ox-t},${yy}" fill="var(--wt)"/><polyline points="${ox-w},${oy-H*sx} ${ox-b},${oy} ${ox+b},${oy} ${ox+w},${oy-H*sx}" fill="none" stroke="currentColor" stroke-width="2"/><line x1="${ox-w}" x2="${ox+w}" y1="${oy-H*sx}" y2="${oy-H*sx}" stroke="gray" stroke-dasharray="4"/>`}
+return`<svg viewBox="0 0 180 170" width="200"><text x="4" y="12" font-size="9" fill="currentColor">${d.label}: y=${d.y.toFixed(2)} m</text>${s}<text x="4" y="164" font-size="8" fill="currentColor">${c?'D='+d.D.toFixed(2):'b='+d.b.toFixed(2)+', z='+d.z}  freeboard ${d.fb.toFixed(2)} m</text></svg>`}
+function run(){const o=$('out');try{const r=compare(inputs());last=r;const ds=Object.values(r.d);
+const rows=[['Bottom width b (m)',d=>f3(d.b)],['Side slope z',d=>d.z==null?'-':d.z],['Diameter D (m)',d=>f3(d.D)],['Normal depth y (m)',d=>f3(d.y)],['Freeboard (m)',d=>f3(d.fb)],['Width at top (m)',d=>f3(d.bank)],['Flow area A (m²)',d=>f3(d.A)],['Gross area (m²)',d=>f3(d.ae)],['Wetted perimeter P (m)',d=>f3(d.P)],['Hydraulic radius R (m)',d=>f3(d.R)],['Velocity V (m/s)',d=>f3(d.V)],['Froude number',d=>f3(d.Fr)+(d.warn?' ⚠':'')],['Flow regime',d=>d.regime],['Critical depth (m)',d=>f3(d.yc)],['Goal value',d=>f3(d.obj)],['All checks',d=>d.ok?'<span class=ok>PASS</span>':'<span class=bad>FAIL</span>']];
+let h='<div class="c tw"><table><tr><th></th>'+ds.map(d=>'<th>'+d.label+'</th>').join('')+'</tr>'+rows.map(x=>'<tr><td>'+x[0]+'</td>'+ds.map(d=>'<td>'+x[1](d)+'</td>').join('')+'</tr>').join('')+'</table></div>';
+h+='<div class="c"><b>Recommended: '+(r.rec?r.rec.label:'none passes every check')+'</b><ul>';
+if(r.rec)h+=`<li>Lowest goal value (${r.rec.obj.toFixed(3)}) among sections that pass every check.</li><li>V = ${r.rec.V.toFixed(2)} m/s, Froude ${r.rec.Fr.toFixed(2)} (${r.rec.regime}).</li>`;
+ds.filter(d=>d!==r.rec&&!d.ok).forEach(d=>h+='<li>'+d.label+' fails: '+d.fails.join('; ')+'</li>');Object.values(r.err).forEach(e=>h+='<li>'+e+'</li>');
+h+='</ul></div><div class="c" style="display:flex;flex-wrap:wrap;gap:8px">'+ds.map(svg).join('')+'</div>';o.innerHTML=h}catch(e){o.innerHTML='<p class="err">'+e.message+'</p>'}}
+$('go').onclick=run;$('csv').onclick=()=>{if(!last)run();if(!last)return;const ds=Object.values(last.d),k=['label','opt','b','z','D','y','fb','H','bank','A','ae','P','R','T','V','Fr','regime','yc','obj','ok'];
+const t=[k.join(',')].concat(ds.map(d=>k.map(x=>d[x]==null?'':String(d[x]).replace(/,/g,';')).join(','))).join('\n');
+const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([t],{type:'text/csv'}));a.download='results.csv';a.click()};run();
+</script></main></body></html>

@@ -1,6 +1,6 @@
 # Channel Design Optimizer
 
-**Live app: https://YOUR-USERNAME.github.io/channel-design-optimizer/**  (replace after enabling GitHub Pages)
+**Live app: https://bishwas920.github.io/channel-design-optimizer/**  (replace after enabling GitHub Pages)
 
 Finds an efficient open-channel section (rectangular, trapezoidal, circular pipe) for a design flow, bed slope and roughness, using Manning's equation for steady uniform flow. It includes best hydraulic sections and checks velocity, Froude number, freeboard and size limits.
 
