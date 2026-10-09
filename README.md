@@ -18,11 +18,6 @@ Other useful options: `--section circular --free-diameter`, `--trap-mode best_ov
 ## Objectives
 `area` (default) = gross section: channel excavation up to the top of the bank, or the whole pipe barrel. This makes the three types comparable. `flow_area` = water area only, `perimeter` = wetted perimeter, `cost` = excavation x c_exc + perimeter x c_lin (relative units). With gross area, vertical walls often win because bank stability is not modelled. Without limits, minimum *flow* area equals the best hydraulic section.
 
-## Testing: what is and is not verified
-- 39 automated tests: Manning round trip, best-section formulas (b = 2y, 2(sqrt(1+z^2) - z), half hexagon), circular limits (V max near y/D 0.81, Q max near 0.94), critical depth, validation, CLI, and Python vs browser logic (via Node).
-- **No textbook worked examples are included.** Tests use analytic checks and one hand calculation of mine. Add a real example in `examples/textbook_template.csv`; the tests check it automatically.
-- Browser page: calculation code is tested with Node. The page layout, dark mode, SVG drawings and CSV button were **not** tested in a real browser.
-
 ## Limitations
 Uniform flow only (no backwater curves); no sediment transport; permissible velocities depend on the source; prismatic sections only; pipes treated as open-channel (not pressurised); the web page has no side-slope scan (`scan_z`) and no charts of the optimisation curve (Python makes both).
 
