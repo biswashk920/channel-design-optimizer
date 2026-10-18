@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "channelopt"
+version = "0.2.0"
+description = "Open-channel section design with Manning's equation"
+requires-python = ">=3.9"
+dependencies = ["numpy>=1.23", "scipy>=1.9", "matplotlib>=3.6", "pandas>=1.5"]
+license = { text = "MIT" }
+
+[project.scripts]
+channelopt = "channelopt.cli:main"
+
+[tool.setuptools]
+packages = ["channelopt"]
+
+[tool.setuptools.package-data]
+channelopt = ["data/*.json"]

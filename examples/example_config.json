@@ -1,0 +1,10 @@
+{
+  "Q": 5.0,
+  "S": 0.001,
+  "lining": "concrete_trowel",
+  "z": 1.5,
+  "trap_mode": "given_z",
+  "fb_mode": "percent",
+  "fb": 20,
+  "objective": "area"
+}
